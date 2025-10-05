@@ -31,6 +31,8 @@ public class SecurityConfig {
                 // Usamos la llamada directa al método bean para evitar el error de resolución de tipos con la referencia de método.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                		// Permite acceso a todas las rutas bajo /api/v1/auth
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         // Todas las rutas del Diary Service requieren autenticación (JWT)
                         .anyRequest().authenticated()
                 )
@@ -53,6 +55,7 @@ public class SecurityConfig {
         configuration.addAllowedMethod("*");
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+     
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

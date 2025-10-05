@@ -29,6 +29,16 @@ import org.springframework.web.filter.CorsFilter;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+	
+	@Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+	
+	 @Bean
+	    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+	        return authConfig.getAuthenticationManager();
+	    }
 
     private final UserDetailsService userDetailsService; // CustomUserDetailsService
 
