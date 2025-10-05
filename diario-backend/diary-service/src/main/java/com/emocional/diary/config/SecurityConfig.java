@@ -13,10 +13,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-/**
- * Configuración de seguridad para el Diary Service.
- * Protege todas las rutas excepto las opciones de CORS y añade el filtro JWT.
- */
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -28,34 +26,32 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                // Usamos la llamada directa al método bean para evitar el error de resolución de tipos con la referencia de método.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                		// Permite acceso a todas las rutas bajo /api/v1/auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        // Todas las rutas del Diary Service requieren autenticación (JWT)
+                        // IMPORTANTE: Las rutas /api/v1/auth/** están en el Auth Service (puerto 8081)
+                        // Este servicio (puerto 8082) solo tiene rutas de diary
+                        .requestMatchers("/actuator/health", "/error").permitAll()
+                        // Todas las rutas de diary requieren autenticación
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Añadir el filtro de JWT para interceptar el token
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
     
-    /**
-     * Define la fuente de configuración de CORS.
-     * Retorna CorsConfigurationSource para que Spring Security la use directamente.
-     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("*");
-        configuration.addAllowedHeader("*");
-        configuration.addAllowedMethod("*");
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000", // Tu frontend
+            "http://localhost:8081"  // Auth Service (para desarrollo)
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-     
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

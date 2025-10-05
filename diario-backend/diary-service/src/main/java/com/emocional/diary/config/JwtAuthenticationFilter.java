@@ -16,11 +16,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collections;
 
-/**
- * Filtro que intercepta peticiones en el Diary Service para validar el JWT.
- * El objetivo es establecer la autenticación en el contexto de seguridad usando el 'userId'
- * en lugar de cargar un UserDetails completo.
- */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -43,17 +38,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String jwt = authHeader.substring(7);
 
-        // 1. Validar el token y la firma
         if (jwtUtil.validateToken(jwt)) {
+            // CORREGIDO: Usa String (igual que el Auth Service)
+            String userId = jwtUtil.extractUserId(jwt);
+            String username = jwtUtil.extractUsername(jwt);
             
-            // 2. Extraer el ID del usuario (información crucial)
-            Long userId = jwtUtil.extractUserId(jwt);
+//            logger.debug("Usuario autenticado - ID: {}, Email: {}", userId, username);
             
-            // 3. Crear el objeto de autenticación
-            // Usamos el userId como el 'principal' y una autoridad simple.
-            // Esto evita la necesidad de llamar a una BD para cargar un UserDetails completo.
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    userId, // Principal: El ID del usuario
+                    userId, // Principal: userId como String
                     null,
                     Collections.singletonList(new SimpleGrantedAuthority("USER"))
             );
@@ -62,11 +55,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     new WebAuthenticationDetailsSource().buildDetails(request)
             );
             
-            // 4. Colocar la autenticación en el contexto de seguridad
             SecurityContextHolder.getContext().setAuthentication(authToken);
         } else {
-            // Si el token es inválido (expirado, firma incorrecta, etc.), la petición fallará
-            // con 403 Forbidden o 401 Unauthorized en el punto de acceso (SecurityConfig).
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"Token inválido o expirado\"}");
+            return;
         }
         
         filterChain.doFilter(request, response);

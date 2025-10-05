@@ -11,10 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 
-/**
- * Controlador REST para manejar las entradas de diario.
- * Todas las rutas están protegidas y requieren un JWT válido.
- */
 @RestController
 @RequestMapping("/api/v1/diary")
 @RequiredArgsConstructor
@@ -24,27 +20,17 @@ public class DiaryEntryController {
 
     /**
      * Extrae el ID del usuario autenticado del contexto de seguridad.
-     * @return El ID del usuario (String).
+     * @return El ID del usuario como String (consistente con el Auth Service)
      */
     private String getAuthenticatedUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        // El principal en este caso es el userId que establecimos en JwtAuthenticationFilter
-        return (String) authentication.getPrincipal();
+        return authentication.getPrincipal().toString(); // userId como String
     }
 
-    /**
-     * Crea una nueva entrada de diario.
-     * 1. Extrae el userId del JWT.
-     * 2. Delega al servicio para hacer el análisis de la IA y guardar la entrada.
-     * @param request Datos de la entrada (contenido, nivel de estrés).
-     * @return 201 Created si la creación es exitosa.
-     */
     @PostMapping
     public ResponseEntity<Void> createDiaryEntry(@Valid @RequestBody DiaryCreateRequest request) {
         String userId = getAuthenticatedUserId();
         diaryEntryService.createEntry(userId, request);
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
-
-    // Nota: Los endpoints para obtener el historial se añadirán más adelante.
 }
