@@ -94,7 +94,7 @@ public class GeminiService {
         - "emotion": Una palabra (alegría, tristeza, ansiedad, enojo, miedo, neutral, etc.)
         - "intensity": Número del 1 (muy baja) al 10 (muy alta)
         - "summary": Máximo 15 palabras, objetivo
-        - "keywords": Exactamente 4 palabras clave relevantes
+        - "keywords": Exactamente 2 palabras clave relevantes
         
         IMPORTANTE: Tu respuesta debe ser SOLO el JSON, sin texto adicional, sin explicaciones, sin markdown.
         """;

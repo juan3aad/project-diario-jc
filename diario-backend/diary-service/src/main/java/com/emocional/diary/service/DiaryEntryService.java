@@ -1,5 +1,6 @@
 package com.emocional.diary.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.emocional.diary.dto.DiaryCreateRequest;
@@ -31,5 +32,9 @@ public interface DiaryEntryService {
     Optional<DiaryEntry> getEntryById(String userId, Long entryId);
 
     // Métodos futuros para listar, actualizar, etc.
+    
+    List<DiaryEntry> getAllEntriesByUserId(String userId);
+    
+    List<DiaryEntry> getAllEntriesAll();
 }
 

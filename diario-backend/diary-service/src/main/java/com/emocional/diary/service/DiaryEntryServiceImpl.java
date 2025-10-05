@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -63,4 +64,22 @@ public class DiaryEntryServiceImpl implements DiaryEntryService {
         return diaryEntryRepository.findById(entryId)
                 .filter(entry -> entry.getUserId().equals(userId));
     }
+
+    /**
+     * Obtiene todas las entradas de diario para un usuario, ordenadas de la más reciente a la más antigua.
+     * @param userId El ID del usuario autenticado.
+     * @return Una lista de DiaryEntry.
+     */
+    @Override
+    public List<DiaryEntry> getAllEntriesByUserId(String userId) {
+        log.info("Buscando todas las entradas para el usuario: {}", userId);
+        // Usa el método predefinido del repositorio para buscar por userId y ordenar.
+        return diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+	@Override
+	public List<DiaryEntry> getAllEntriesAll() {
+		// TODO Auto-generated method stub
+		return diaryEntryRepository.findAll();
+	}
 }
