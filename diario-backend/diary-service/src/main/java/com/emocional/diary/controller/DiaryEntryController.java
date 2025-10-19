@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -50,6 +51,10 @@ public class DiaryEntryController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
     
+    /**
+     * GET /api/v1/diary: Lista todas las entradas del usuario autenticado ordenado por fecha.
+     * @return
+     */
     @GetMapping
     public ResponseEntity<List<DiaryEntryResponse>> getAllDiaryEntries() {
     	// 1. Obtener el ID del usuario del contexto de seguridad
@@ -64,6 +69,24 @@ public class DiaryEntryController {
                 .collect(Collectors.toList());    
 
         // 4. Devolver la lista
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * GET /api/v1/diary/{id}: Obtiene una entrada de diario especifico por su ID
+     */
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<DiaryEntryResponse> getDiaryEntryById(@PathVariable("id") Long entryId) {
+        String userId = getAuthenticatedUserId();
+        
+        DiaryEntry entry = diaryEntryService.getEntryById(userId, entryId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, 
+                        "Entrada de diario no encontrada o no pertenece al usuario."
+                ));
+
+        DiaryEntryResponse response = entryMapper.toResponse(entry);
         return ResponseEntity.ok(response);
     }
 }
