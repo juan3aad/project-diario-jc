@@ -10,37 +10,41 @@ import org.springframework.stereotype.Component;
 import java.security.Key;
 import java.util.function.Function;
 
+/**
+ * Utilidad JWT para el DIARY SERVICE (CONSUMER).
+ * Se encarga de VALIDAR el token y de extraer el ID del usuario (Long).
+ */
 @Component
 public class JwtUtil {
 
+    // Clave secreta COMPARTIDA con el Auth Service
     @Value("${jwt.secret.key}")
     private String SECRET_KEY;
 
+    /**
+     * Valida si la firma del token es correcta y si no ha expirado.
+     */
     public boolean validateToken(String token) {
         try {
+            // Un error al parsear los claims indica que es inválido (expirado, firma incorrecta)
             extractAllClaims(token);
             return true;
         } catch (Exception e) {
-            System.err.println("Error al validar el token: " + e.getMessage());
+            // Manejo de errores de token (firma, expiración)
+            System.err.println("Token validation error: " + e.getMessage());
             return false;
         }
     }
     
     /**
-     * CORREGIDO: Extrae el userId como String (igual que en Auth Service)
+     * Extrae el ID del usuario (Long) del claim 'userId' del token.
      */
-    public String extractUserId(String token) {
-        return extractClaim(token, claims -> claims.get("userId").toString());
+    public Long extractUserId(String token) {
+        // Asume que el Auth Service usa el claim 'userId'
+        return extractClaim(token, claims -> claims.get("userId", Long.class));
     }
 
-    /**
-     * Extrae el email (subject) del token
-     */
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
-
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
