@@ -106,11 +106,7 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-        	<groupId>com.emocional</groupId>
-        	<artifactId>auth-service</artifactId>
-        	<version>0.0.1-SNAPSHOT</version>
-        </dependency>
+        
     </dependencies>
 
     <build>
@@ -134,6 +130,8 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    !-- CRUCIAL: Define la clase principal para que el JAR sea ejecutable -->
+                    <mainClass>com.emocional.diary.DiaryServiceApplication</mainClass> 
                 </configuration>
             </plugin>
         </plugins>
