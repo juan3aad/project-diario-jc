@@ -2,75 +2,53 @@ package com.emocional.diary.controller.advice;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
+
+
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+
 
 import com.emocional.diary.dto.ErrorResponse;
-import com.emocional.diary.exception.ExternalServiceException;
-@RestControllerAdvice 
+
+
+/**
+ * Clase centralizada para el manejo global de excepciones en el DIARY-SERVICE.
+ * Mapea las excepciones del servicio a respuestas HTTP estandarizadas (ErrorResponse).
+ */
+@ControllerAdvice
 public class GlobalExceptionHandler {
-	/**
-     * Captura las excepciones de negocio (IllegalStateException) para la regla 
-     * "Solo una entrada por día".
-     * Devuelve un código 409 Conflict.
-     */
-	@ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        // Concatenar todos los mensajes de error de campo
-        String detailedMessage = ex.getBindingResult().getAllErrors().stream()
-                .map(error -> {
-                    String fieldName = (error instanceof FieldError) ? ((FieldError) error).getField() : error.getObjectName();
-                    return fieldName + ": " + error.getDefaultMessage();
-                })
-                .collect(java.util.stream.Collectors.joining("; "));
 
-        System.err.println("❌ ARGUMENTO DE MÉTODO INVÁLIDO (400): " + detailedMessage);
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                "Error de validación en los datos de entrada: " + detailedMessage,
-                HttpStatus.BAD_REQUEST.value(),
-                "Bad Request"
-        );
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
-    }
-    
     /**
-     * Captura la excepción de servicio externo (Gemini/OpenAI fallido).
-     * Devuelve un código 503 Service Unavailable.
+     * Maneja la IllegalStateException.
+     * Esto se utiliza para errores de reglas de negocio, como la doble entrada de diario (409 Conflict).
+     *
+     * @param ex La excepción lanzada: "Solo se permite una entrada de diario por día."
+     * @return ResponseEntity con el DTO ErrorResponse y estado HTTP 409 Conflict.
      */
-    @ExceptionHandler(ExternalServiceException.class)
-    public ResponseEntity<ErrorResponse> handleExternalServiceException(ExternalServiceException ex) {
-        // Loguear para el backend
-        System.err.println("❌ SERVICIO EXTERNO NO DISPONIBLE (503): " + ex.getMessage());
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                ex.getMessage(),
-                HttpStatus.SERVICE_UNAVAILABLE.value(),
-                "Service Unavailable"
-        );
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.SERVICE_UNAVAILABLE);
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
+        HttpStatus status = HttpStatus.CONFLICT; // 409
+        ErrorResponse errorResponse = new ErrorResponse(ex.getMessage(), status);
+        
+        // Logueamos la advertencia, pero devolvemos una respuesta amigable al cliente
+        System.err.println("Conflicto de Regla de Negocio: " + ex.getMessage());
+        
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     /**
-     * Manejador de excepciones genéricas (opcional, pero recomendado)
-     * para cualquier error no previsto, devolviendo un 500 Internal Server Error.
+     * Manejador de excepciones genérico (catch-all) para cualquier excepción no prevista.
+     * (Internal Server Error - 500).
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        // Loguear el error con stack trace completo
-        ex.printStackTrace(); 
-        
+    public ResponseEntity<ErrorResponse> handleAllExceptions(Exception ex) {
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; // 500
         ErrorResponse errorResponse = new ErrorResponse(
-                "Ocurrió un error interno inesperado. Consulte los logs del servidor.",
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Internal Server Error"
+                "Ocurrió un error inesperado en el servidor.",
+                status
         );
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+        // Es fundamental loguear la traza completa de una excepción 500
+        ex.printStackTrace();
+        return new ResponseEntity<>(errorResponse, status);
     }
-
 }
