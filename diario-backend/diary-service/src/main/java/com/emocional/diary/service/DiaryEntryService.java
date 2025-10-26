@@ -3,8 +3,10 @@ package com.emocional.diary.service;
 import java.util.List;
 import java.util.Optional;
 
-import com.emocional.diary.dto.DiaryCreateRequest;
-import com.emocional.diary.model.DiaryEntry;
+
+import com.emocional.diary.dto.DiaryEntryRequest;
+import com.emocional.diary.dto.DiaryEntryResponse;
+
 
 
 
@@ -15,26 +17,30 @@ import com.emocional.diary.model.DiaryEntry;
  */
 public interface DiaryEntryService {
     
-    /**
-     * Crea una nueva entrada de diario con el análisis de sentimientos de IA.
-     * @param userId El ID del usuario que crea la entrada.
-     * @param request Los datos de la entrada (contenido y nivel de estrés inicial).
-     * @return La entrada de diario persistida.
+	/**
+     * Crea una nueva entrada de diario.
+     * Realiza validación de límite diario, llama al servicio Gemini para análisis y guarda la entrada.
+     * @param userId El ID del usuario autenticado.
+     * @param request El DTO con los datos de la entrada.
+     * @return El DTO de respuesta con los datos de la entrada guardada y analizada.
      */
-    DiaryEntry createEntry(String userId, DiaryCreateRequest request);
+    DiaryEntryResponse createEntry(Long userId, DiaryEntryRequest request);
 
     /**
-     * Busca una entrada de diario por ID, asegurando que el usuario sea el propietario.
-     * @param userId ID del usuario autenticado.
-     * @param entryId ID de la entrada a buscar.
-     * @return Optional<DiaryEntry> con la entrada si existe y pertenece al usuario.
+     * Obtiene una entrada de diario por su ID, asegurando que pertenece al usuario.
+     * @param userId El ID del usuario autenticado.
+     * @param entryId El ID de la entrada.
+     * @return Un Optional que contiene la entrada si se encuentra y pertenece al usuario.
      */
-    Optional<DiaryEntry> getEntryById(String userId, Long entryId);
+    Optional<DiaryEntryResponse> getEntryById(Long userId, Long entryId);
 
-    // Métodos futuros para listar, actualizar, etc.
+    /**
+     * Obtiene todas las entradas de diario para un usuario, ordenadas por fecha descendente.
+     * @param userId El ID del usuario autenticado.
+     * @return Una lista de DTOs de entrada de diario.
+     */
+    List<DiaryEntryResponse> getAllEntriesByUserId(Long userId);
     
-    List<DiaryEntry> getAllEntriesByUserId(String userId);
-    
-    List<DiaryEntry> getAllEntriesAll();
+  
 }
 

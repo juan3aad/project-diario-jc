@@ -4,26 +4,69 @@ import com.emocional.diary.dto.DiaryEntryResponse;
 import com.emocional.diary.model.DiaryEntry;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Component
 public class DiaryEntryMapper {
 
-    public DiaryEntryResponse toResponse(DiaryEntry entry) {
-        if (entry == null) {
-            return null;
+	/**
+     * Convierte una entidad DiaryEntry a un DTO de respuesta, mapeando los nuevos nombres de campos.
+     * @param entry La entidad fuente.
+     * @return El DTO de respuesta.
+     */
+	
+	public DiaryEntryResponse toResponseDto(DiaryEntry entry) {
+		if(entry == null) {
+			return null;
+		}
+		
+		
+		//Mapeo entre los campos del DTO (target) y la nueva Entidad (source)
+		
+		return DiaryEntryResponse.builder()
+				.id(entry.getId())
+				
+				//Mapeo del ID de Usuario: Ahora es un Long directo en la entidad
+				.userId(entry.getUserId())
+				
+				//Datos del Check-in
+				.entryText(entry.getContent()) // Nuevo: content
+				.entryDate(entry.getCreatedAt()) //Nuevo:createdAt
+				
+				.moodRating(entry.getUserMoodRating())
+				.stressLevel(entry.getUserSleepHours() != null ? entry.getUserSleepHours().intValue():0)
+				
+				.mainWorry(null)
+				
+				// --- Mapeo de campos de la IA
+				.detectedEmotion(entry.getAiEmotion())
+				.emotionalIntensity(entry.getAiIntensity())
+				.keyWords(entry.getAiKeywords())
+				.aiSummary(entry.getAiSummary())
+				.build();
+				
+				
+				
+				
+				
+		
+	}
+	
+	/**
+     * Convierte una lista de entidades DiaryEntry a una lista de DTOs de respuesta.
+     * @param entries La lista de entidades fuente.
+     * @return La lista de DTOs.
+     */
+    public List<DiaryEntryResponse> toResponseDtoList(List<DiaryEntry> entries) {
+        if (entries == null) {
+            return Collections.emptyList();
         }
-
-        DiaryEntryResponse response = new DiaryEntryResponse();
-        response.setId(entry.getId());
-        response.setContent(entry.getContent());
-        response.setUserStressLevel(entry.getUserStressLevel());
-        response.setCreatedAt(entry.getCreatedAt());
-
-        // Mapeo de campos de la IA
-        response.setAiEmotion(entry.getAiEmotion());
-        response.setAiIntensity(entry.getAiIntensity());
-        response.setAiSummary(entry.getAiSummary());
-        response.setAiKeywords(entry.getAiKeywords());
-
-        return response;
+        return entries.stream()
+                .map(this::toResponseDto)
+                .collect(Collectors.toList());
     }
+	
+	
 }

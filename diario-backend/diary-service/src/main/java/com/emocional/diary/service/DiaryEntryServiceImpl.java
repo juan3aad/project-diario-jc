@@ -1,17 +1,24 @@
 package com.emocional.diary.service;
 
-import com.emocional.diary.dto.DiaryCreateRequest;
+import com.emocional.diary.dto.DiaryEntryRequest;
+import com.emocional.diary.dto.DiaryEntryResponse;
 import com.emocional.diary.dto.gemini.GeminiAnalysisResponse;
+import com.emocional.diary.exception.ExternalServiceException;
 import com.emocional.diary.model.DiaryEntry;
 import com.emocional.diary.repository.DiaryEntryRepository;
+import com.emocional.diary.mapper.DiaryEntryMapper; // Se añade la importación del Mapper
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
+import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono; // Necesario ya que GeminiService devuelve Mono
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime; // Nuevo import para LocalTime.MAX
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors; // Nuevo import para mapear listas
 
 @Service
 @RequiredArgsConstructor
@@ -20,66 +27,113 @@ public class DiaryEntryServiceImpl implements DiaryEntryService {
 
     private final DiaryEntryRepository diaryEntryRepository;
     private final GeminiService geminiService;
+    private final DiaryEntryMapper mapper; // INYECCIÓN DEL MAPPER
 
     @Override
-    public DiaryEntry createEntry(String userId, DiaryCreateRequest request) {
+    @Transactional
+    public DiaryEntryResponse createEntry(Long userId, DiaryEntryRequest request) {
         log.info("Iniciando creación de entrada para usuario: {}", userId);
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        // CORRECCIÓN: Usar LocalTime.MAX para cubrir todo el final del día
+        LocalDateTime endOfDay = today.atTime(LocalTime.MAX); 
+
+        // 1. Validar la restricción de "Una Entrada por Día"
+        Optional<DiaryEntry> existingEntry = diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+
+        if (existingEntry.isPresent()) {
+            log.warn("❌ Intento de doble check-in para usuario: {}", userId);
+            throw new IllegalStateException("Solo se permite una entrada de diario por día.");
+        }
+        
+        // 2. Validación de datos de entrada
+        if (request.getEntryText() == null || request.getEntryText().trim().isEmpty()) {
+            throw new IllegalArgumentException("El contenido del diario no puede estar vacío.");
+        }
+
         try {
-            // Llamar a Gemini de forma sincrónica (blocking)
-            GeminiAnalysisResponse analysisResponse = geminiService.analyzeSentiment(request.getContent())
-                    .block(); // Convertir Mono a sincrónico
+            // 3. Llamada a Gemini de forma sincrónica (blocking)
+            // Esto es correcto ya que estamos en un contexto de Spring Web (no WebFlux) y necesitamos el resultado
+            GeminiAnalysisResponse analysisResponse = geminiService.analyzeSentiment(request.getEntryText())
+                    .block(); 
 
             if (analysisResponse == null || analysisResponse.getEmotion() == null) {
-                throw new RuntimeException("Análisis de sentimientos fallido");
+                // Relanzamos la excepción específica para el fallo del servicio externo
+                throw new ExternalServiceException("El análisis de sentimientos por Gemini ha fallado o la respuesta es nula.");
             }
 
-            // Crear y guardar la entrada
+            // 4. Crear la Entidad DiaryEntry
             DiaryEntry entry = DiaryEntry.builder()
-                    .userId(userId)
-                    .content(request.getContent())
-                    .userStressLevel(request.getStressLevel())
-                    .createdAt(LocalDateTime.now())
-                    .aiEmotion(analysisResponse.getEmotion())
-                    .aiIntensity(analysisResponse.getIntensity())
-                    .aiKeywords(analysisResponse.getKeywords())
-                    .aiSummary(analysisResponse.getSummary())
-                    .build();
+            		 .userId(userId)
+                     // CORRECCIÓN: Usar los nombres de campo de la Entidad (asumiendo entryText)
+                     .content(request.getEntryText()) 
+                     
+                     // --- Mapeo de los nuevos campos de Check-in ---
+                     // CORRECCIÓN: Asumiendo que los campos de la Entidad son stressLevel, moodRating, etc.
+                     .userStressLevel(request.getStressLevel())
+                     .userMoodRating(request.getMoodRating())
+                     .userSleepHours(request.getSleepHours())
+                     // ---------------------------------------------
+                     
+                     // CORRECCIÓN: Usar entryDate en la Entidad
+                     
+                     .createdAt(now) 
+                     .aiEmotion(analysisResponse.getEmotion())
+                     .aiIntensity(analysisResponse.getIntensity())
+                     // El mapper debe convertir List<String> a String para el campo de la Entidad
+                     
+                     .aiKeywords(analysisResponse.getKeywords())
+                     .aiSummary(analysisResponse.getSummary())
+                     .build();
 
-            DiaryEntry savedEntry = diaryEntryRepository.save(entry);
+            // Guardar la ENTIDAD
+            DiaryEntry savedEntity = diaryEntryRepository.save(entry);
+            
+            // CONVERSIÓN CRÍTICA: Mapear la Entidad guardada al DTO de respuesta
+            DiaryEntryResponse response = mapper.toResponseDto(savedEntity);
             
             log.info("✅ Entrada guardada - ID: {}, Usuario: {}, Emoción: {}", 
-                     savedEntry.getId(), userId, analysisResponse.getEmotion());
+                      response.getId(), userId, savedEntity.getAiEmotion());
 
-            return savedEntry;
+            return response;
 
+        } catch (ExternalServiceException e) {
+             throw e;
         } catch (Exception e) {
-            log.error("❌ Error creando entrada de diario: {}", e.getMessage(), e);
-            throw new RuntimeException("Error creando entrada: " + e.getMessage(), e);
+            log.error("❌ Error inesperado creando entrada de diario para {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Error interno al procesar la entrada: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public Optional<DiaryEntry> getEntryById(String userId, Long entryId) {
+    @Transactional(readOnly = true)
+    public Optional<DiaryEntryResponse> getEntryById(Long userId, Long entryId) {
+        // CORRECCIÓN: Asegurar que el usuario solo puede ver sus propias entradas
+        // Asumo que tienes un método que busca por ID de entrada Y ID de usuario (findByIdAndUserId)
         return diaryEntryRepository.findById(entryId)
-                .filter(entry -> entry.getUserId().equals(userId));
+                .filter(entry -> entry.getUserId().equals(userId))
+                // CONVERSIÓN CRÍTICA: Mapear la Entidad a DTO
+                .map(mapper::toResponseDto); 
     }
 
     /**
      * Obtiene todas las entradas de diario para un usuario, ordenadas de la más reciente a la más antigua.
      * @param userId El ID del usuario autenticado.
-     * @return Una lista de DiaryEntry.
+     * @return Una lista de DiaryEntryResponse.
      */
     @Override
-    public List<DiaryEntry> getAllEntriesByUserId(String userId) {
+    @Transactional(readOnly = true)
+    public List<DiaryEntryResponse> getAllEntriesByUserId(Long userId) {
         log.info("Buscando todas las entradas para el usuario: {}", userId);
-        // Usa el método predefinido del repositorio para buscar por userId y ordenar.
-        return diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        
+        // Asumo que el repositorio usa entryDate para ordenar
+        Optional<DiaryEntry> entries = diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        
+        // CONVERSIÓN CRÍTICA: Mapear la lista de Entidades a una lista de DTOs
+        return entries.stream()
+                .map(mapper::toResponseDto)
+                .collect(Collectors.toList());
     }
-
-	@Override
-	public List<DiaryEntry> getAllEntriesAll() {
-		// TODO Auto-generated method stub
-		return diaryEntryRepository.findAll();
-	}
 }

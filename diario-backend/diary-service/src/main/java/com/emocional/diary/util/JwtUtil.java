@@ -13,6 +13,7 @@ import java.util.function.Function;
 /**
  * Utilidad JWT para el DIARY SERVICE (CONSUMER).
  * Se encarga de VALIDAR el token y de extraer el ID del usuario (Long).
+ * Utiliza la misma clave secreta que el Auth Service.
  */
 @Component
 public class JwtUtil {
@@ -23,14 +24,15 @@ public class JwtUtil {
 
     /**
      * Valida si la firma del token es correcta y si no ha expirado.
+     * Si falla, lanzará una excepción (que se captura aquí o en el filtro).
      */
     public boolean validateToken(String token) {
         try {
-            // Un error al parsear los claims indica que es inválido (expirado, firma incorrecta)
+            // Intenta parsear los claims. Si el token es inválido o expirado, lanza una excepción.
             extractAllClaims(token);
             return true;
         } catch (Exception e) {
-            // Manejo de errores de token (firma, expiración)
+            // Imprimimos el error solo para depuración; el filtro de seguridad manejará el 401.
             System.err.println("Token validation error: " + e.getMessage());
             return false;
         }
