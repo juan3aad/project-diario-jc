@@ -1,4 +1,4 @@
-package com.emocional.diary.controller.advice;
+package com.emocional.diary.handler;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-
+import org.springframework.web.server.ResponseStatusException;
 
 import com.emocional.diary.dto.ErrorResponse;
 
@@ -35,6 +35,26 @@ public class GlobalExceptionHandler {
         
         return new ResponseEntity<>(errorResponse, status);
     }
+    /**
+     * Maneja la ResponseStatusException (que lanza el código 404)
+     * Esto se usa cuando un recurso no se encuentra (ej. Entrada de diario no encontrada).
+     * * @param ex La excepción lanzada: 404 NOT_FOUND "Entrada de diario no encontrada..."
+     * @return ResponseEntity con el DTO ErrorResponse y estado HTTP 404 Not Found.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
+        HttpStatus status = (HttpStatus) ex.getStatusCode();
+        
+        // Usamos el mensaje del ResponseStatusException
+        String message = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+        
+        ErrorResponse errorResponse = new ErrorResponse(message, status);
+        
+        System.err.println("Error HTTP " + status.value() + ": " + message);
+        
+        return new ResponseEntity<>(errorResponse, status);
+    }
+    
 
     /**
      * Manejador de excepciones genérico (catch-all) para cualquier excepción no prevista.
