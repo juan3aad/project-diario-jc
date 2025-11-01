@@ -1,6 +1,9 @@
 package com.emocional.auth.config;
 
 import lombok.RequiredArgsConstructor;
+
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -10,6 +13,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,7 +22,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+
 
 /**
  * Configuración central de Spring Security para el Auth Service.
@@ -30,29 +34,60 @@ import org.springframework.web.filter.CorsFilter;
 @RequiredArgsConstructor
 public class SecurityConfig {
 	
+	private final UserDetailsService userDetailsService; // CustomUserDetailsService
+
+	
 	@Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+	
+	/**
+     * Define el AuthenticationProvider usando el UserDetailsService y el PasswordEncoder.
+     * Esta es la pieza que faltaba para que el proceso de login funcione.
+     */
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+    
+    /**
+     * El AuthenticationManager se usa en el controlador de Auth para ejecutar el login.
+     * Ahora utilizará el AuthenticationProvider que definimos.
+     */
 	
 	 @Bean
 	    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
 	        return authConfig.getAuthenticationManager();
 	    }
 
-    private final UserDetailsService userDetailsService; // CustomUserDetailsService
+   
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(auth -> auth
-                        // Permite acceso a todas las rutas bajo /api/v1/auth
+                
+             // *** ¡PASO CRÍTICO! Enlaza el AuthenticationProvider al HttpSecurity ***
+                // Esto asegura que la configuración de autenticación es utilizada por el filtro.
+                .authenticationProvider(authenticationProvider()) 
+                
+            	// 3. Configurar Autorización de las Peticiones
+                .authorizeHttpRequests(auth -> {
+                    auth
+                        // *** ¡CLAVE! Permitir acceso público a Login y Register ***
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        // Todas las demás rutas pueden ser denegadas o protegidas si se añaden más endpoints
-                        .anyRequest().authenticated()
-                )
+                        
+                        // Asegurar todas las demás rutas
+                        .anyRequest().authenticated();
+                })
+                
+                // 4. Deshabilitar cabeceras de caché (opcional, pero buena práctica)
+                .headers(headers -> headers.cacheControl(HeadersConfigurer.CacheControlConfig::disable))
                 // Usamos STATELESS aunque no haya JWT filter, para ser explícitos
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
@@ -66,12 +101,38 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("*");
-        configuration.addAllowedHeader("*");
-        configuration.addAllowedMethod("*");
+        
+     // FIX CLAVE: Especificar el origen del frontend.
+        configuration.setAllowedOrigins(Arrays.asList(
+        		"http://localhost:5173",
+        		"http://localhost:5174",
+        		"http://localhost:3000",
+        		"http://localhost:8081"
+        		));
+        
+        
+        
+//        configuration.addAllowedOrigin("*");
+        // Define métodos permitidos
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        
+        // Define encabezados permitidos (CRUCIAL para 'Authorization')
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        
+        // Es importante establecer esto como true si se van a usar cookies o encabezados Authorization
+        configuration.setAllowCredentials(true); 
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    } 
+        
+        
+        
+
+      
+      
+        
+       
     }
-}
+

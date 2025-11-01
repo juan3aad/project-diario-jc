@@ -48,6 +48,9 @@ public class DiaryEntry {
     @Column(nullable = false)
     private Integer userSleepHours;
 
+    // Principal preocupación del usuario
+    private String mainWorry;
+
     // --- Campos de Análisis de IA (Resultado de OpenAI) ---
     
     // Emoción principal detectada por la IA (e.g., "ansiedad", "alegría")
@@ -67,10 +70,10 @@ public class DiaryEntry {
 
     // Fecha y hora de creación de la entrada
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private java.time.Instant createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        createdAt = java.time.Instant.now();
     }
 }

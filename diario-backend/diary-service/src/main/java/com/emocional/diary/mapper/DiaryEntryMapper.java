@@ -32,13 +32,14 @@ public class DiaryEntryMapper {
 				.userId(entry.getUserId())
 				
 				//Datos del Check-in
-				.entryText(entry.getContent()) // Nuevo: content
-				.entryDate(entry.getCreatedAt()) //Nuevo:createdAt
+				.entryText(entry.getContent()) 
+				.entryDate(entry.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()) 
 				
 				.moodRating(entry.getUserMoodRating())
-				.stressLevel(entry.getUserSleepHours() != null ? entry.getUserSleepHours().intValue():0)
+				.stressLevel(entry.getUserStressLevel())
+				.sleepHours(entry.getUserSleepHours())
 				
-				.mainWorry(null)
+				.mainWorry(entry.getMainWorry())
 				
 				// --- Mapeo de campos de la IA
 				.detectedEmotion(entry.getAiEmotion())

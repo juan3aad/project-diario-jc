@@ -1,5 +1,6 @@
 package com.emocional.auth.controller;
 
+import com.emocional.auth.dto.AuthResponse;
 import com.emocional.auth.dto.LoginRequest;
 import com.emocional.auth.dto.RegisterRequest;
 import com.emocional.auth.service.AuthService;
@@ -25,9 +26,9 @@ public class AuthController {
      * @return 201 Created si el registro es exitoso.
      */
     @PostMapping("/register")
-    public ResponseEntity<Void> register(@RequestBody RegisterRequest request) {
-        authService.register(request);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+    public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
+        AuthResponse authResponse = authService.register(request);
+        return new ResponseEntity<>(authResponse, HttpStatus.CREATED);
     }
 
     /**
@@ -36,10 +37,9 @@ public class AuthController {
      * @return 200 OK y el JWT si las credenciales son válidas.
      */
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest request) {
-        String jwt = authService.login(request);
-        // Devolvemos el JWT directamente. En un entorno real se devolvería un DTO con el token.
-        return ResponseEntity.ok(jwt);
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+        AuthResponse authResponse = authService.login(request);
+        return ResponseEntity.ok(authResponse);
     }
 
     // Nota: La gestión de perfil y logout seguro se implementaría en futuras iteraciones

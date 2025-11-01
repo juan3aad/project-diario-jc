@@ -59,9 +59,10 @@ public class SecurityConfig {
         
         // Define orígenes permitidos (ajustar en producción)
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000", // Tu frontend (React/Vue/etc.)
-            "http://localhost:8081", // Auth Service (si lo necesitas para pruebas cruzadas)
-            "*" // Puedes usar "*" si el entorno de desarrollo es muy dinámico
+            "http://localhost:5174", // Tu frontend (React/Vue/etc.)
+            "http://localhost:3000",
+            "http://localhost:8081" // Auth Service (si lo necesitas para pruebas cruzadas)
+//            "*" // Puedes usar "*" si el entorno de desarrollo es muy dinámico
         ));
         
         // Define métodos permitidos

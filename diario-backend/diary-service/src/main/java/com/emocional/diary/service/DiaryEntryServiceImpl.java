@@ -13,9 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono; // Necesario ya que GeminiService devuelve Mono
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime; // Nuevo import para LocalTime.MAX
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors; // Nuevo import para mapear listas
@@ -34,16 +36,15 @@ public class DiaryEntryServiceImpl implements DiaryEntryService {
     public DiaryEntryResponse createEntry(Long userId, DiaryEntryRequest request) {
         log.info("Iniciando creación de entrada para usuario: {}", userId);
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
-        LocalDateTime startOfDay = today.atStartOfDay();
-        // CORRECCIÓN: Usar LocalTime.MAX para cubrir todo el final del día
-        LocalDateTime endOfDay = today.atTime(LocalTime.MAX); 
+        Instant now = Instant.now();
+        LocalDate today = now.atZone(ZoneId.systemDefault()).toLocalDate();
+        Instant startOfDay = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant endOfDay = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
 
         // 1. Validar la restricción de "Una Entrada por Día"
-        Optional<DiaryEntry> existingEntry = diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<DiaryEntry> existingEntriesToday = diaryEntryRepository.findByUserIdAndCreatedAtBetween(userId, startOfDay, endOfDay);
 
-        if (existingEntry.isPresent()) {
+        if (!existingEntriesToday.isEmpty()) {
             log.warn("❌ Intento de doble check-in para usuario: {}", userId);
             throw new IllegalStateException("Solo se permite una entrada de diario por día.");
         }
@@ -67,23 +68,14 @@ public class DiaryEntryServiceImpl implements DiaryEntryService {
             // 4. Crear la Entidad DiaryEntry
             DiaryEntry entry = DiaryEntry.builder()
             		 .userId(userId)
-                     // CORRECCIÓN: Usar los nombres de campo de la Entidad (asumiendo entryText)
                      .content(request.getEntryText()) 
-                     
-                     // --- Mapeo de los nuevos campos de Check-in ---
-                     // CORRECCIÓN: Asumiendo que los campos de la Entidad son stressLevel, moodRating, etc.
                      .userStressLevel(request.getStressLevel())
                      .userMoodRating(request.getMoodRating())
                      .userSleepHours(request.getSleepHours())
-                     // ---------------------------------------------
-                     
-                     // CORRECCIÓN: Usar entryDate en la Entidad
-                     
+                     .mainWorry(request.getMainWorry())
                      .createdAt(now) 
                      .aiEmotion(analysisResponse.getEmotion())
                      .aiIntensity(analysisResponse.getIntensity())
-                     // El mapper debe convertir List<String> a String para el campo de la Entidad
-                     
                      .aiKeywords(analysisResponse.getKeywords())
                      .aiSummary(analysisResponse.getSummary())
                      .build();
@@ -129,7 +121,7 @@ public class DiaryEntryServiceImpl implements DiaryEntryService {
         log.info("Buscando todas las entradas para el usuario: {}", userId);
         
         // Asumo que el repositorio usa entryDate para ordenar
-        Optional<DiaryEntry> entries = diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<DiaryEntry> entries = diaryEntryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         
         // CONVERSIÓN CRÍTICA: Mapear la lista de Entidades a una lista de DTOs
         return entries.stream()

@@ -19,7 +19,7 @@ public interface DiaryEntryRepository extends JpaRepository<DiaryEntry, Long> {
      * @param userId El ID del usuario propietario.
      * @return Lista de entradas de diario.
      */
-    Optional<DiaryEntry> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<DiaryEntry> findByUserIdOrderByCreatedAtDesc(Long userId);
     
     
     /**
@@ -44,9 +44,11 @@ public interface DiaryEntryRepository extends JpaRepository<DiaryEntry, Long> {
     
     @Query("SELECT de FROM DiaryEntry de WHERE de.userId = :userId AND de.createdAt >= :startOfDay AND de.createdAt <= :endOfDay")
     Optional<DiaryEntry> findByUserIdAndDateRange(@Param("userId") Long userId, 
-                                                  @Param("startOfDay") LocalDateTime startOfDay, 
-                                                  @Param("endOfDay") LocalDateTime endOfDay);
+                                                  @Param("startOfDay") java.time.Instant startOfDay, 
+                                                  @Param("endOfDay") java.time.Instant endOfDay);
     
 
+
+    List<DiaryEntry> findByUserIdAndCreatedAtBetween(Long userId, java.time.Instant start, java.time.Instant end);
 
 }

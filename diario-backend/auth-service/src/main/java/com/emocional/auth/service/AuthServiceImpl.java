@@ -1,5 +1,6 @@
 package com.emocional.auth.service;
 
+import com.emocional.auth.dto.AuthResponse;
 import com.emocional.auth.dto.LoginRequest;
 import com.emocional.auth.dto.RegisterRequest;
 import com.emocional.auth.model.User;
@@ -27,10 +28,10 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
 
     /**
-     * Registra un nuevo usuario en la base de datos.
+     * Registra un nuevo usuario en la base de datos y genera un token JWT.
      */
     @Override
-    public void register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new IllegalArgumentException("El email ya está en uso.");
         }
@@ -43,13 +44,16 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         userRepository.save(user);
+
+        String jwt = jwtUtil.generateToken(user);
+        return new AuthResponse(jwt);
     }
 
     /**
      * Autentica al usuario y genera un token JWT.
      */
     @Override
-    public String login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request) {
         // 1. Autenticar usando el AuthenticationManager
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -63,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
 
         // 3. Generar y retornar el JWT
-        return jwtUtil.generateToken(user); // <-- Usando jwtUtil para generar el token
+        String jwt = jwtUtil.generateToken(user);
+        return new AuthResponse(jwt);
     }
 }
