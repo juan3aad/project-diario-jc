@@ -111,13 +111,14 @@ export default function DashboardPage() {
       const sortedEntries = entriesData.sort((a, b) => new Date(b.entryDate!).getTime() - new Date(a.entryDate!).getTime())
       setEntries(sortedEntries)
       const today = new Date()
+      // Normalize today's date to UTC start of day for accurate comparison
+      const todayUtcStart = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
+
       const todayEntryFound = sortedEntries.find((entry) => {
         const entryDate = new Date(entry.entryDate!)
-        return (
-          entryDate.getDate() === today.getDate() &&
-          entryDate.getMonth() === today.getMonth() &&
-          entryDate.getFullYear() === today.getFullYear()
-        )
+        // Normalize entry's date to UTC start of day
+        const entryDateUtcStart = new Date(Date.UTC(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate()))
+        return todayUtcStart.getTime() === entryDateUtcStart.getTime()
       })
       setTodayEntry(todayEntryFound || null)
     } catch (error) {
@@ -189,6 +190,8 @@ export default function DashboardPage() {
           <Button onClick={handleNewEntry} size="lg">
             <Plus className="w-4 h-4 mr-2" />
             {todayEntry ? "Editar Entrada de Hoy" : "Crear Nueva Entrada"}
+            
+            
           </Button>
         </div>
       </div>
@@ -223,7 +226,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-semibold text-balance leading-tight">{stats?.mainConcern || "Sin datos"}</div>
-            <p className="text-xs text-muted-foreground mt-1">Tema más mencionado este mes</p>
+            <p className="text-xs text-muted-foreground mt-1">Tema más mencionado en tu historial</p>
           </CardContent>
         </Card>
       </div>
@@ -314,6 +317,8 @@ export default function DashboardPage() {
       >
         <Lightbulb className="h-8 w-8" />
       </Button>
+
+      <EntryFormDialog open={dialogOpen} onOpenChange={setDialogOpen} onSave={handleSaveEntry} editingEntry={editingEntry} />
     </div>
   )
 }

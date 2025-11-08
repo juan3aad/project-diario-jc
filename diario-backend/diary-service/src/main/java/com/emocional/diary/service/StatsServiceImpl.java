@@ -5,6 +5,8 @@ import com.emocional.diary.dto.WeeklyStatsResponse;
 import com.emocional.diary.model.DiaryEntry;
 import com.emocional.diary.repository.DiaryEntryRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -43,25 +45,29 @@ public class StatsServiceImpl implements StatsService {
 
         // --- Calculations for the current week ---
         double averageStress = currentWeekEntries.stream()
+                .filter(entry -> entry.getUserStressLevel() != null)
                 .mapToInt(DiaryEntry::getUserStressLevel)
                 .average()
                 .orElse(0.0);
 
+
+// ... imports
+
+// ... inside StatsServiceImpl
+
         double averageSleep = currentWeekEntries.stream()
+                .filter(entry -> entry.getUserSleepHours() != null)
                 .mapToInt(DiaryEntry::getUserSleepHours)
                 .average()
                 .orElse(0.0);
 
-        String mainWorry = currentWeekEntries.stream()
-                .filter(entry -> entry.getMainWorry() != null && !entry.getMainWorry().trim().isEmpty() && !entry.getMainWorry().equalsIgnoreCase("Ninguna"))
-                .collect(Collectors.groupingBy(DiaryEntry::getMainWorry, Collectors.counting()))
-                .entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse("N/A");
+        // Find main worry from all-time entries
+        List<String> frequentWorries = diaryEntryRepository.findMostFrequentMainWorry(userId, PageRequest.of(0, 1));
+        String mainWorry = frequentWorries.isEmpty() ? "Ninguna preocupación dominante" : frequentWorries.get(0);
 
         // --- Calculation for the previous week ---
         double previousWeekStress = previousWeekEntries.stream()
+                .filter(entry -> entry.getUserStressLevel() != null)
                 .mapToInt(DiaryEntry::getUserStressLevel)
                 .average()
                 .orElse(0.0);

@@ -47,7 +47,8 @@ public interface DiaryEntryRepository extends JpaRepository<DiaryEntry, Long> {
                                                   @Param("startOfDay") java.time.Instant startOfDay, 
                                                   @Param("endOfDay") java.time.Instant endOfDay);
     
-
+    @Query("SELECT e.mainWorry FROM DiaryEntry e WHERE e.userId = :userId AND e.mainWorry IS NOT NULL AND TRIM(e.mainWorry) <> '' AND e.mainWorry <> 'Ninguna' GROUP BY e.mainWorry ORDER BY COUNT(e.mainWorry) DESC")
+    List<String> findMostFrequentMainWorry(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
 
     List<DiaryEntry> findByUserIdAndCreatedAtBetween(Long userId, java.time.Instant start, java.time.Instant end);
 

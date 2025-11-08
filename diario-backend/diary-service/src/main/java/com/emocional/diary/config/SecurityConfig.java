@@ -36,8 +36,11 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // Permite acceso sin autenticación para endpoints de salud y error.
-                        .requestMatchers("/actuator/health", "/error").permitAll()
+                        // Permite acceso sin autenticación para endpoints de salud, error y Swagger UI.
+                        .requestMatchers("/actuator/health", "/error",
+                                         "/v3/api-docs/**",
+                                         "/swagger-ui/**",
+                                         "/swagger-ui.html").permitAll()
                         // Todas las demás rutas, incluyendo las de /api/v1/checkin, requieren autenticación JWT.
                         .anyRequest().authenticated()
                 )

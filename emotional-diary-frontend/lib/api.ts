@@ -58,7 +58,7 @@ export interface DiaryEntry {
 export interface WeeklyStats {
   averageStress: number
   previousWeekStress: number
-  mainConcern: string
+  mainWorry: string
   averageSleep: number
   stressHistory: Array<{ date: string; stress: number }>
 }

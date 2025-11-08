@@ -79,8 +79,11 @@ public class SecurityConfig {
             	// 3. Configurar Autorización de las Peticiones
                 .authorizeHttpRequests(auth -> {
                     auth
-                        // *** ¡CLAVE! Permitir acceso público a Login y Register ***
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Permitir acceso público a Login, Register y Swagger UI
+                        .requestMatchers("/api/v1/auth/**",
+                                         "/v3/api-docs/**",
+                                         "/swagger-ui/**",
+                                         "/swagger-ui.html").permitAll()
                         
                         // Asegurar todas las demás rutas
                         .anyRequest().authenticated();
