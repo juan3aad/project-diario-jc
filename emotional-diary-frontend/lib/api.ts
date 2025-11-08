@@ -52,7 +52,7 @@ export interface DiaryEntry {
   aiEmotion?: string
   aiIntensity?: number
   aiSummary?: string
-  createdAt?: string
+  entryDate?: string
 }
 
 export interface WeeklyStats {
@@ -263,6 +263,6 @@ export const statsApi = {
       await simulateNetworkDelay()
       return MOCK_RECOMMENDATIONS
     }
-    return apiRequest<Recommendation[]>("/recommendations")
+    return apiRequest<Recommendation[]>("/stats/recommendations")
   },
 }

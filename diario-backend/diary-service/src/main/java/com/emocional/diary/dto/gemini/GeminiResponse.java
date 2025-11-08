@@ -8,6 +8,9 @@ import java.util.List;
 @Data
 public class GeminiResponse {
     private List<Candidate> candidates;
+    
+    @JsonProperty("promptFeedback")
+    private PromptFeedback promptFeedback;
 
     @Data
     public static class Candidate {
@@ -25,5 +28,11 @@ public class GeminiResponse {
     @Data
     public static class Part {
         private String text;
+    }
+
+    @Data
+    public static class PromptFeedback {
+        @JsonProperty("blockReason")
+        private String blockReason;
     }
 }

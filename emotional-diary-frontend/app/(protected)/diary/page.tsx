@@ -23,7 +23,7 @@ export default function DiaryPage() {
   const loadEntries = async () => {
     try {
       const data = await diaryApi.getAll()
-      setEntries(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+      setEntries(data.sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime()))
     } catch (error) {
       toast({
         title: "Error",

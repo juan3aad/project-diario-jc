@@ -12,6 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,203 +29,136 @@ public class GeminiService {
     private String geminiUrl;
 
     public Mono<GeminiAnalysisResponse> analyzeSentiment(String diaryContent) {
-        try {
-            String prompt = buildSystemPrompt() + "\n\nTEXTO DEL DIARIO A ANALIZAR:\n" + diaryContent;
+        String prompt = buildSystemPrompt() + "\n\nTEXTO DEL DIARIO A ANALIZAR:\n" + diaryContent;
+        log.info("Enviando análisis de sentimientos a Gemini...");
+        GeminiRequest requestBody = createGeminiRequest(prompt);
 
-            log.info("Enviando análisis de sentimientos a Gemini...");
+        return webClient.post()
+                .uri(uriBuilder -> uriBuilder.path("/v1/models/gemini-2.5-flash:generateContent").queryParam("key", apiKey).build())
+                .body(BodyInserters.fromValue(requestBody))
+                .retrieve()
+                .bodyToMono(GeminiResponse.class)
+                .flatMap(this::parseContentFromResponse)
+                .doOnSuccess(response -> log.info("✅ Análisis completado - Emoción: {}", response.getEmotion()))
+                .doOnError(error -> log.error("❌ Error en la llamada a Gemini para análisis: {}", error.getMessage()));
+    }
 
-            GeminiRequest requestBody = GeminiRequest.builder()
-                    .contents(List.of(
-                            GeminiRequest.Content.builder()
-                                    .parts(List.of(
-                                            GeminiRequest.Part.builder()
-                                                    .text(prompt)
-                                                    .build()
-                                    ))
-                                    .build()
-                    ))
-                    .generationConfig(GeminiRequest.GenerationConfig.builder()
-                            .temperature(0.1)
-                            .maxOutputTokens(1000)
-                            .topP(0.8)
-                            .topK(40)
-                            .build())
-                    .build();
-//https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent
-            return webClient.post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v1/models/gemini-2.5-flash:generateContent")
-                            .queryParam("key", apiKey)
-                            .build())
-                    .body(BodyInserters.fromValue(requestBody))
-                    .retrieve()
-                    .bodyToMono(GeminiResponse.class)
-                    .flatMap(this::parseContentFromResponse)
-                    .doOnSuccess(response -> log.info("✅ Análisis completado - Emoción: {}", response.getEmotion()))
-                    .doOnError(error -> {
-                        log.error("❌ Error en Gemini API: {}", error.getMessage());
-                        // Log más detallado para debugging
-                        if (error.getMessage().contains("401")) {
-                            log.error("❌ API Key inválida o no autorizada");
-                        } else if (error.getMessage().contains("429")) {
-                            log.error("❌ Límite de rate limit excedido");
-                        } else if (error.getMessage().contains("400")) {
-                            log.error("❌ Solicitud mal formada");
-                        }
-                    });
+    public Mono<GeminiRecommendationResponse> generateRecommendation(String promptText) {
+        String prompt = buildRecommendationPrompt(promptText);
+        log.info("Enviando solicitud de recomendación a Gemini...");
+        GeminiRequest requestBody = createGeminiRequest(prompt);
 
-        } catch (Exception e) {
-            log.error("Error preparando solicitud a Gemini: {}", e.getMessage());
-            return Mono.error(e);
-        }
+        return webClient.post()
+                .uri(uriBuilder -> uriBuilder.path("/v1/models/gemini-2.5-flash:generateContent").queryParam("key", apiKey).build())
+                .body(BodyInserters.fromValue(requestBody))
+                .retrieve()
+                .bodyToMono(GeminiResponse.class)
+                .flatMap(this::parseRecommendationFromResponse)
+                .doOnSuccess(response -> log.info("✅ Recomendación generada con éxito."))
+                .doOnError(error -> log.error("❌ Error en la llamada a Gemini para recomendación: {}", error.getMessage()));
+    }
+
+    private GeminiRequest createGeminiRequest(String prompt) {
+        return GeminiRequest.builder()
+                .contents(List.of(
+                        GeminiRequest.Content.builder()
+                                .parts(List.of(GeminiRequest.Part.builder().text(prompt).build()))
+                                .build()
+                ))
+                .generationConfig(GeminiRequest.GenerationConfig.builder()
+                        .temperature(0.5)
+                        .maxOutputTokens(2048)
+                        .topP(0.8)
+                        .topK(40)
+                        .build())
+                .build();
     }
 
     private String buildSystemPrompt() {
         return """
         Eres un psicólogo especializado en análisis emocional. Analiza el texto del diario y devuelve SOLO un objeto JSON con este formato exacto:
-        
-        {
-          "emotion": "emoción_principal",
-          "intensity": número_1_a_10,
-          "summary": "resumen_muy_corto",
-          "keywords": ["palabra1", "palabra2", "palabra3", "palabra4"]
-        }
-        
-        Reglas:
-        - "emotion": Una palabra (alegría, tristeza, ansiedad, enojo, miedo, neutral, etc.)
-        - "intensity": Número del 1 (muy baja) al 10 (muy alta)
-        - "summary": Máximo 15 palabras, objetivo
-        - "keywords": Exactamente 2 palabras clave relevantes
-        
+        {"emotion": "emoción_principal", "intensity": número_1_a_10, "summary": "resumen_muy_corto", "keywords": ["palabra1", "palabra2"]}
+        Reglas: "emotion" una palabra, "intensity" un número, "summary" máx 15 palabras, "keywords" exactamente 2.
         IMPORTANTE: Tu respuesta debe ser SOLO el JSON, sin texto adicional, sin explicaciones, sin markdown.
         """;
     }
 
-    private Mono<GeminiAnalysisResponse> parseContentFromResponse(GeminiResponse apiResponse) {
-        try {
-            if (apiResponse.getCandidates() == null || apiResponse.getCandidates().isEmpty()) {
-                log.error("❌ Gemini no devolvió candidatos en la respuesta");
-                return Mono.error(new RuntimeException("Respuesta de Gemini sin candidatos"));
-            }
-
-            String contentText = apiResponse.getCandidates().get(0).getContent().getParts().get(0).getText();
-            log.debug("Respuesta cruda de Gemini: {}", contentText);
-
-            // Limpiar la respuesta
-            String cleanJson = contentText.trim()
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .trim();
-
-            log.debug("JSON limpio: {}", cleanJson);
-
-            // Parsear el JSON
-            GeminiAnalysisResponse parsedResponse = objectMapper.readValue(cleanJson, GeminiAnalysisResponse.class);
-
-            // Validar campos requeridos
-            if (parsedResponse.getEmotion() == null || parsedResponse.getIntensity() == null) {
-                log.error("❌ Respuesta de Gemini incompleta: {}", cleanJson);
-                return Mono.error(new RuntimeException("Respuesta de Gemini incompleta"));
-            }
-
-            log.info("✅ Análisis parseado - Emoción: {}, Intensidad: {}, Keywords: {}", 
-                    parsedResponse.getEmotion(), 
-                    parsedResponse.getIntensity(),
-                    parsedResponse.getKeywords());
-
-            return Mono.just(parsedResponse);
-
-        } catch (JsonProcessingException e) {
-            log.error("❌ Error parseando JSON de Gemini: {}", e.getMessage());
-            return Mono.error(new RuntimeException("Error procesando respuesta de Gemini", e));
-        } catch (Exception e) {
-            log.error("❌ Error inesperado procesando respuesta: {}", e.getMessage());
-            return Mono.error(new RuntimeException("Error procesando respuesta de Gemini", e));
-        }
-    }
-
-    public Mono<GeminiRecommendationResponse> generateRecommendation(String promptText) {
-        try {
-            String prompt = buildRecommendationPrompt(promptText);
-
-            log.info("Enviando solicitud de recomendación a Gemini...");
-
-            GeminiRequest requestBody = GeminiRequest.builder()
-                    .contents(List.of(
-                            GeminiRequest.Content.builder()
-                                    .parts(List.of(
-                                            GeminiRequest.Part.builder()
-                                                    .text(prompt)
-                                                    .build()
-                                    ))
-                                    .build()
-                    ))
-                    .generationConfig(GeminiRequest.GenerationConfig.builder()
-                            .temperature(0.7)
-                            .maxOutputTokens(1000)
-                            .topP(0.8)
-                            .topK(40)
-                            .build())
-                    .build();
-
-            return webClient.post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v1/models/gemini-2.5-flash:generateContent")
-                            .queryParam("key", apiKey)
-                            .build())
-                    .body(BodyInserters.fromValue(requestBody))
-                    .retrieve()
-                    .bodyToMono(GeminiResponse.class)
-                    .flatMap(this::parseRecommendationFromResponse)
-                    .doOnSuccess(response -> log.info("✅ Recomendación generada con éxito."))
-                    .doOnError(error -> log.error("❌ Error en Gemini API al generar recomendación: {}", error.getMessage()));
-
-        } catch (Exception e) {
-            log.error("Error preparando solicitud de recomendación a Gemini: {}", e.getMessage());
-            return Mono.error(e);
-        }
-    }
-
     private String buildRecommendationPrompt(String userContext) {
-        return "Eres un experto en bienestar mental. Genera 3 recomendaciones de bienestar mental personalizadas. " +
-               "Cada recomendación debe tener un título, una descripción (máx. 30 palabras), una categoría (ej. 'Bienestar', 'Actividad Física', 'Relaciones') y una prioridad ('high', 'medium', 'low'). " +
+        return "Eres un experto en bienestar mental. Genera 3 recomendaciones personalizadas. " +
+               "Cada una debe tener: title, description (máx 30 palabras), category ('Bienestar', 'Actividad Física', etc.), y priority ('high', 'medium', 'low'). " +
                "Devuelve la respuesta en formato JSON como un array de objetos con la clave 'recommendations'. " +
                "Ejemplo: { \"recommendations\": [ { \"title\": \"...\", \"description\": \"...\", \"category\": \"...\", \"priority\": \"...\" } ] }\n\n" +
                "Contexto del usuario: " + userContext;
     }
 
-    private Mono<GeminiRecommendationResponse> parseRecommendationFromResponse(GeminiResponse apiResponse) {
-        try {
-            if (apiResponse.getCandidates() == null || apiResponse.getCandidates().isEmpty()) {
-                log.error("❌ Gemini no devolvió candidatos en la respuesta de recomendación");
-                return Mono.error(new RuntimeException("Respuesta de Gemini sin candidatos para recomendación"));
-            }
-
-            String contentText = apiResponse.getCandidates().get(0).getContent().getParts().get(0).getText();
-            log.debug("Respuesta cruda de Gemini para recomendación: {}", contentText);
-
-            String cleanJson = contentText.trim()
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .trim();
-
-            log.debug("JSON limpio para recomendación: {}", cleanJson);
-
-            GeminiRecommendationResponse parsedResponse = objectMapper.readValue(cleanJson, GeminiRecommendationResponse.class);
-
-            if (parsedResponse.getRecommendations() == null || parsedResponse.getRecommendations().isEmpty()) {
-                log.error("❌ Respuesta de Gemini incompleta para recomendación: {}", cleanJson);
-                return Mono.error(new RuntimeException("Respuesta de Gemini incompleta para recomendación"));
-            }
-
-            return Mono.just(parsedResponse);
-
-        } catch (JsonProcessingException e) {
-            log.error("❌ Error parseando JSON de recomendación de Gemini: {}", e.getMessage());
-            return Mono.error(new RuntimeException("Error procesando respuesta de recomendación de Gemini", e));
-        } catch (Exception e) {
-            log.error("❌ Error inesperado procesando respuesta de recomendación: {}", e.getMessage());
-            return Mono.error(new RuntimeException("Error procesando respuesta de recomendación de Gemini", e));
+    private Optional<String> extractCleanJson(GeminiResponse apiResponse) {
+        if (apiResponse == null) {
+            log.error("❌ La respuesta de la API de Gemini es completamente nula.");
+            return Optional.empty();
         }
+
+        if (apiResponse.getCandidates() == null || apiResponse.getCandidates().isEmpty()) {
+            log.error("❌ Gemini no devolvió 'candidates' en la respuesta. Finish Reason: {}", 
+                Optional.ofNullable(apiResponse.getPromptFeedback()).map(f -> f.getBlockReason()).orElse("N/A"));
+            return Optional.empty();
+        }
+
+        GeminiResponse.Candidate firstCandidate = apiResponse.getCandidates().get(0);
+        if (firstCandidate.getContent() == null) {
+            log.error("❌ El primer candidato de la respuesta no tiene 'content'. Finish Reason: {}", firstCandidate.getFinishReason());
+            return Optional.empty();
+        }
+
+        if (firstCandidate.getContent().getParts() == null || firstCandidate.getContent().getParts().isEmpty()) {
+            log.error("❌ El contenido del candidato no tiene 'parts'. Finish Reason: {}", firstCandidate.getFinishReason());
+            return Optional.empty();
+        }
+
+        String rawText = firstCandidate.getContent().getParts().get(0).getText();
+        if (rawText == null || rawText.isBlank()) {
+            log.error("❌ El texto dentro de 'parts' está vacío o es nulo.");
+            return Optional.empty();
+        }
+
+        log.debug("Respuesta cruda de Gemini: {}", rawText);
+        String cleanJson = rawText.trim().replace("```json", "").replace("```", "").trim();
+        log.debug("JSON limpio: {}", cleanJson);
+        return Optional.of(cleanJson);
+    }
+
+    private Mono<GeminiAnalysisResponse> parseContentFromResponse(GeminiResponse apiResponse) {
+        return extractCleanJson(apiResponse)
+                .map(cleanJson -> {
+                    try {
+                        GeminiAnalysisResponse parsed = objectMapper.readValue(cleanJson, GeminiAnalysisResponse.class);
+                        if (parsed.getEmotion() == null || parsed.getIntensity() == null) {
+                            log.error("❌ JSON de análisis incompleto: {}", cleanJson);
+                            return Mono.<GeminiAnalysisResponse>error(new RuntimeException("Respuesta de análisis de Gemini incompleta"));
+                        }
+                        return Mono.just(parsed);
+                    } catch (JsonProcessingException e) {
+                        log.error("❌ Error parseando JSON de análisis: {}", e.getMessage());
+                        return Mono.<GeminiAnalysisResponse>error(new RuntimeException("Error procesando respuesta de análisis de Gemini", e));
+                    }
+                })
+                .orElseGet(() -> Mono.error(new RuntimeException("No se pudo extraer contenido JSON válido de la respuesta de Gemini para análisis.")));
+    }
+
+    private Mono<GeminiRecommendationResponse> parseRecommendationFromResponse(GeminiResponse apiResponse) {
+        return extractCleanJson(apiResponse)
+                .map(cleanJson -> {
+                    try {
+                        GeminiRecommendationResponse parsed = objectMapper.readValue(cleanJson, GeminiRecommendationResponse.class);
+                        if (parsed.getRecommendations() == null || parsed.getRecommendations().isEmpty()) {
+                            log.error("❌ JSON de recomendación incompleto: {}", cleanJson);
+                            return Mono.<GeminiRecommendationResponse>error(new RuntimeException("Respuesta de recomendación de Gemini incompleta"));
+                        }
+                        return Mono.just(parsed);
+                    } catch (JsonProcessingException e) {
+                        log.error("❌ Error parseando JSON de recomendación: {}", e.getMessage());
+                        return Mono.<GeminiRecommendationResponse>error(new RuntimeException("Error procesando respuesta de recomendación de Gemini", e));
+                    }
+                })
+                .orElseGet(() -> Mono.error(new RuntimeException("No se pudo extraer contenido JSON válido de la respuesta de Gemini para recomendación.")));
     }
 }

@@ -12,16 +12,23 @@ interface DiaryEntryCardProps {
 }
 
 export function DiaryEntryCard({ entry, onEdit }: DiaryEntryCardProps) {
-  const date = new Date(entry.createdAt)
-  const formattedDate = date.toLocaleDateString("es-ES", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-  const formattedTime = date.toLocaleTimeString("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  const dateString = entry.entryDate;
+  const date = dateString ? new Date(dateString.replace(' ', 'T')) : null;
+
+  const formattedDate = date
+    ? date.toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "Fecha inválida";
+
+  const formattedTime = date
+    ? date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
   const getSentimentColor = (aiEmotion?: string) => {
     if (!aiEmotion) return "secondary"
