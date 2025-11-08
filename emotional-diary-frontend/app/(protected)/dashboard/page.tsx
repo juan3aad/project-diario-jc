@@ -106,6 +106,7 @@ export default function DashboardPage() {
         diaryApi.getAll(),
         statsApi.getRecommendations()
       ])
+      console.log("Datos de statsApi.getWeekly():", statsData);
       setStats(statsData)
       setRecommendations(recsData)
       const sortedEntries = entriesData.sort((a, b) => new Date(b.entryDate!).getTime() - new Date(a.entryDate!).getTime())
@@ -225,7 +226,7 @@ export default function DashboardPage() {
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold text-balance leading-tight">{stats?.mainConcern || "Sin datos"}</div>
+            <div className="text-lg font-semibold text-balance leading-tight">{stats?.mainWorry || "Sin datos"}</div>
             <p className="text-xs text-muted-foreground mt-1">Tema más mencionado en tu historial</p>
           </CardContent>
         </Card>
